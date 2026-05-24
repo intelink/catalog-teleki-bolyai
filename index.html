@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title data-i18n="page_title">Catalog Biblioteca Teleki-Bolyai</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=2" />
 </head>
 <body>
 
@@ -116,13 +116,17 @@
 
     <form id="asst-form">
       <div class="asst-controls">
-        <div class="field">
+        <div class="asst-field">
           <label for="asst-provider" data-i18n="asst_provider">Furnizor</label>
-          <select id="asst-provider"></select>
+          <select id="asst-provider">
+            <option value="">— se încarcă…</option>
+          </select>
         </div>
-        <div class="field field-grow">
+        <div class="asst-field asst-field-grow">
           <label for="asst-model" data-i18n="asst_model">Model</label>
-          <select id="asst-model"></select>
+          <select id="asst-model">
+            <option value="">— se încarcă…</option>
+          </select>
         </div>
       </div>
       <div class="asst-input-row">
@@ -158,6 +162,6 @@
   </div>
 </footer>
 
-<script src="/app.js"></script>
+<script src="/app.js?v=2"></script>
 </body>
 </html>

@@ -549,19 +549,43 @@ mark.hl {
 }
 .asst-controls {
   display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
+  align-items: flex-end;
 }
-.asst-controls .field { min-width: 180px; }
-.asst-controls select {
+.asst-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+  min-width: 200px;
+}
+.asst-field-grow {
+  flex: 2 1 360px;
+  min-width: 280px;
+}
+.asst-field label {
+  font-size: 12px;
+  color: var(--ink-mute);
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.asst-field select {
   width: 100%;
-  padding: 8px 10px;
+  height: 38px;
+  padding: 6px 10px;
   border: 1px solid var(--rule);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: #fff;
   font-family: var(--sans);
   font-size: 14px;
+  color: var(--ink);
+  outline: none;
+}
+.asst-field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(122,28,28,.10);
 }
 .asst-input-row {
   display: flex;
