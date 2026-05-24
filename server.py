@@ -23,7 +23,10 @@ import sys
 import re
 import unicodedata
 import urllib.parse
+import traceback
 from functools import lru_cache
+
+import assistant
 
 PORT = 8970
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -219,9 +222,48 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     return
             self._send_json({"error": "not found"}, status=404)
             return
+        if path == "/api/assistant/providers":
+            self._send_json({"providers": assistant.list_providers()})
+            return
 
         # Static files
         return super().do_GET()
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            self._send_json({"error": "invalid json"}, status=400)
+            return
+
+        if path == "/api/assistant/ask":
+            question = (payload.get("question") or "").strip()
+            provider = (payload.get("provider") or "").strip()
+            model = (payload.get("model") or "").strip()
+            if not question:
+                self._send_json({"error": "intrebare goala"}, status=400)
+                return
+            if provider not in ("claude", "codex", "ollama"):
+                self._send_json({"error": "provider invalid"}, status=400)
+                return
+            try:
+                result = assistant.ask(question, provider, model, ENTRIES, top_k=40)
+            except assistant.ProviderError as e:
+                self._send_json({"error": str(e)}, status=502)
+                return
+            except Exception as e:
+                traceback.print_exc()
+                self._send_json({"error": f"{type(e).__name__}: {e}"}, status=500)
+                return
+            self._send_json(result)
+            return
+
+        self._send_json({"error": "not found"}, status=404)
+        return
 
     def end_headers(self):
         # Allow CORS for any potential ajax from file://

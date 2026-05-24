@@ -52,6 +52,22 @@ const I18N = {
       "Catalogus Librorum Sedecimo Saeculo Impressorum Bibliothecae Teleki-Bolyai, 2001.",
     footer_instr: "Instrucțiuni",
     no_author: "fără autor",
+    asst_title: "🤖 Asistent catalog",
+    asst_sub: "Pune o întrebare în limbaj natural. Asistentul extrage cuvinte-cheie multilingvistice, caută în catalog și răspunde cu o listă de cărți relevante (autor, titlu, cotă, an).",
+    asst_provider: "Furnizor",
+    asst_model: "Model",
+    asst_placeholder: "ex: ce cărți sunt despre reforma protestantă? sau despre Erasmus? sau tipărite la Veneția?",
+    asst_ask: "Întreabă",
+    asst_thinking: "Asistentul gândește (caută în catalog și formulează răspunsul)…",
+    asst_keywords: "Cuvinte-cheie extrase",
+    asst_entries_used: "Intrări considerate",
+    asst_no_entries: "Nicio intrare găsită cu aceste cuvinte-cheie.",
+    asst_error: "Eroare",
+    asst_examples_label: "Exemple:",
+    asst_ex1: "Cărți despre reforma protestantă sau Luther",
+    asst_ex2: "Lucrări de Erasmus din Rotterdam",
+    asst_ex3: "Cărți tipărite la Veneția sau Basel",
+    asst_ex4: "Tratate de medicină sau botanică",
   },
   hu: {
     page_title: "Teleki-Bolyai Könyvtár katalógusa",
@@ -104,6 +120,22 @@ const I18N = {
       "Catalogus Librorum Sedecimo Saeculo Impressorum Bibliothecae Teleki-Bolyai, 2001.",
     footer_instr: "Útmutató",
     no_author: "szerző nélkül",
+    asst_title: "🤖 Katalógus-asszisztens",
+    asst_sub: "Tegyen fel kérdést természetes nyelven. Az asszisztens többnyelvű kulcsszavakat keres, a katalógusban keres, és releváns könyvek listáját adja vissza (szerző, cím, jelzet, év).",
+    asst_provider: "Szolgáltató",
+    asst_model: "Modell",
+    asst_placeholder: "pl. milyen könyvek szólnak a reformációról? vagy Erasmusról? vagy Velencében nyomtatva?",
+    asst_ask: "Kérdez",
+    asst_thinking: "Az asszisztens gondolkodik (keres a katalógusban és válaszol)…",
+    asst_keywords: "Kivont kulcsszavak",
+    asst_entries_used: "Figyelembe vett tételek",
+    asst_no_entries: "Nincs találat ezekre a kulcsszavakra.",
+    asst_error: "Hiba",
+    asst_examples_label: "Példák:",
+    asst_ex1: "Könyvek a reformációról vagy Lutherről",
+    asst_ex2: "Rotterdami Erasmus művei",
+    asst_ex3: "Velencében vagy Bázelben nyomtatott könyvek",
+    asst_ex4: "Orvosi vagy botanikai értekezések",
   },
 };
 
@@ -421,12 +453,161 @@ function escRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// ============================== Assistant ============================== //
+
+let ASST_PROVIDERS = [];
+let ASST_BUSY = false;
+const ASST_LS_KEY = "asst_pref_v1";
+
+async function loadAssistantProviders() {
+  try {
+    const r = await fetch("/api/assistant/providers");
+    const j = await r.json();
+    ASST_PROVIDERS = j.providers || [];
+  } catch (e) {
+    ASST_PROVIDERS = [];
+  }
+  const provSel = $("#asst-provider");
+  if (!provSel) return;
+  provSel.innerHTML = ASST_PROVIDERS.map(
+    (p) => `<option value="${escAttr(p.id)}">${escHtml(p.name)}</option>`
+  ).join("");
+
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(ASST_LS_KEY) || "{}"); } catch {}
+  if (saved.provider && ASST_PROVIDERS.find((p) => p.id === saved.provider)) {
+    provSel.value = saved.provider;
+  }
+  populateModelSelect(saved.model);
+  provSel.addEventListener("change", () => populateModelSelect());
+  $("#asst-model").addEventListener("change", saveAsstPref);
+}
+
+function populateModelSelect(preferredModel) {
+  const provId = $("#asst-provider").value;
+  const prov = ASST_PROVIDERS.find((p) => p.id === provId);
+  const sel = $("#asst-model");
+  if (!prov) {
+    sel.innerHTML = "";
+    return;
+  }
+  sel.innerHTML = prov.models
+    .map((m) => `<option value="${escAttr(m.name)}">${escHtml(m.label || m.name)}</option>`)
+    .join("");
+  if (preferredModel && prov.models.find((m) => m.name === preferredModel)) {
+    sel.value = preferredModel;
+  }
+  saveAsstPref();
+}
+
+function saveAsstPref() {
+  localStorage.setItem(
+    ASST_LS_KEY,
+    JSON.stringify({
+      provider: $("#asst-provider").value,
+      model: $("#asst-model").value,
+    })
+  );
+}
+
+function renderExamples() {
+  const ex = $("#asst-examples");
+  if (!ex) return;
+  const items = [
+    I18N[LANG].asst_ex1,
+    I18N[LANG].asst_ex2,
+    I18N[LANG].asst_ex3,
+    I18N[LANG].asst_ex4,
+  ];
+  ex.innerHTML =
+    `<span class="qf-label">${I18N[LANG].asst_examples_label}</span>` +
+    items
+      .map((t) => `<button type="button" class="asst-ex-chip">${escHtml(t)}</button>`)
+      .join("");
+  $$(".asst-ex-chip").forEach((b) =>
+    b.addEventListener("click", () => {
+      $("#asst-question").value = b.textContent;
+      $("#asst-question").focus();
+    })
+  );
+}
+
+function renderAssistantAnswer(text) {
+  const escaped = escHtml(text);
+  const linked = escaped.replace(/\[([A-Z]\s\d+)\]/g, (m, id) => {
+    return `<a href="#" class="asst-cite" data-id="${escAttr(id)}">[${escHtml(id)}]</a>`;
+  });
+  const md = linked
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>")
+    .replace(/\n/g, "<br/>");
+  return md;
+}
+
+async function askAssistant(ev) {
+  ev.preventDefault();
+  if (ASST_BUSY) return;
+  const question = $("#asst-question").value.trim();
+  if (!question) return;
+  const provider = $("#asst-provider").value;
+  const model = $("#asst-model").value;
+  if (!provider || !model) return;
+
+  ASST_BUSY = true;
+  $("#asst-submit").disabled = true;
+  $("#asst-response").innerHTML = `<div class="asst-loading">${I18N[LANG].asst_thinking}</div>`;
+
+  try {
+    const r = await fetch("/api/assistant/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, provider, model }),
+    });
+    const j = await r.json();
+    if (j.error) {
+      $("#asst-response").innerHTML =
+        `<div class="asst-error"><strong>${I18N[LANG].asst_error}:</strong> ${escHtml(j.error)}</div>`;
+      return;
+    }
+    const kw = (j.keywords || []).map(
+      (k) => `<span class="asst-kw">${escHtml(k)}</span>`
+    ).join(" ");
+    const t = j.timing || {};
+    const meta = `<div class="asst-meta">
+      <span>${escHtml(provider)} / ${escHtml(model)}</span>
+      <span>expand ${t.expand_s||0}s</span>
+      <span>retrieve ${t.retrieve_s||0}s</span>
+      <span>answer ${t.answer_s||0}s</span>
+      <span>${(j.entries||[]).length} ${I18N[LANG].asst_entries_used.toLowerCase()}</span>
+    </div>`;
+    const body = `<div class="asst-answer">${renderAssistantAnswer(j.answer || "")}</div>`;
+    const kwBlock = kw
+      ? `<div class="asst-keywords"><span class="qf-label">${I18N[LANG].asst_keywords}:</span> ${kw}</div>`
+      : "";
+    $("#asst-response").innerHTML = meta + body + kwBlock;
+    $$(".asst-cite").forEach((a) =>
+      a.addEventListener("click", (ev2) => {
+        ev2.preventDefault();
+        openEntryModal(a.dataset.id);
+      })
+    );
+  } catch (e) {
+    $("#asst-response").innerHTML =
+      `<div class="asst-error"><strong>${I18N[LANG].asst_error}:</strong> ${escHtml(e.message || String(e))}</div>`;
+  } finally {
+    ASST_BUSY = false;
+    $("#asst-submit").disabled = false;
+  }
+}
+
 // ----- init -----
 
 window.addEventListener("DOMContentLoaded", async () => {
   applyLang();
   await loadMeta();
   await loadFacets();
+  await loadAssistantProviders();
+  renderExamples();
 
   $$(".lang-btn").forEach((b) =>
     b.addEventListener("click", () => {
@@ -435,6 +616,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       applyLang();
       // re-render stats with translated labels
       loadMeta();
+      renderExamples();
       // re-render results count text if visible
       if (Object.keys(LAST_QUERY).length) doSearch();
     })
@@ -466,6 +648,14 @@ window.addEventListener("DOMContentLoaded", async () => {
   $(".modal-backdrop").addEventListener("click", closeModal);
   document.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape") closeModal();
+  });
+
+  // assistant
+  $("#asst-form").addEventListener("submit", askAssistant);
+  $("#asst-question").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+      askAssistant(ev);
+    }
   });
 
   // initial empty state

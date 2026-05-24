@@ -105,6 +105,38 @@
     <div class="results-pager" id="results-pager-bottom"></div>
   </section>
 
+  <section class="assistant-panel" id="assistant-panel">
+    <div class="assistant-header">
+      <h2 data-i18n="asst_title">🤖 Asistent catalog</h2>
+      <p class="assistant-sub" data-i18n="asst_sub">
+        Pune o întrebare în limbaj natural. Asistentul extrage cuvinte-cheie multilingvistice,
+        caută în catalog și răspunde cu o listă de cărți relevante (autor, titlu, cotă, an).
+      </p>
+    </div>
+
+    <form id="asst-form">
+      <div class="asst-controls">
+        <div class="field">
+          <label for="asst-provider" data-i18n="asst_provider">Furnizor</label>
+          <select id="asst-provider"></select>
+        </div>
+        <div class="field field-grow">
+          <label for="asst-model" data-i18n="asst_model">Model</label>
+          <select id="asst-model"></select>
+        </div>
+      </div>
+      <div class="asst-input-row">
+        <textarea id="asst-question" rows="2"
+                  data-i18n-attr="placeholder:asst_placeholder"
+                  placeholder="ex: ce cărți sunt despre reforma protestantă? sau despre Erasmus? sau tipărite la Veneția?"></textarea>
+        <button type="submit" class="btn-primary" id="asst-submit" data-i18n="asst_ask">Întreabă</button>
+      </div>
+      <div class="asst-examples" id="asst-examples"></div>
+    </form>
+
+    <div id="asst-response" class="asst-response"></div>
+  </section>
+
 </main>
 
 <div id="entry-modal" class="modal hidden" role="dialog" aria-modal="true">
